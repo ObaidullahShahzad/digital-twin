@@ -1,3 +1,5 @@
+import Cookies from "js-cookie";
+
 // Define the structure of the BotData
 interface RecordingConfig {
   transcript?: {
@@ -141,21 +143,23 @@ interface SetupGmailResponse {
   success: boolean;
 }
 
+// Define the structure for Google login API response
+interface GoogleLoginResponse {
+  success: boolean;
+  token: string;
+}
+const AUTH_TOKEN = Cookies.get("authToken");
+const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
 export const fetchBots = async (): Promise<BotData[]> => {
   try {
-    const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || "";
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    console.log("auth token:", AUTH_TOKEN ? "Token present" : "Token missing");
-
     if (!baseUrl) {
       throw new Error(
         "API base URL is not defined. Please check your environment variables."
       );
     }
     if (!AUTH_TOKEN) {
-      throw new Error(
-        "Authorization token is not defined. Please set NEXT_PUBLIC_AUTH_TOKEN in your environment variables."
-      );
+      throw new Error("Authorization token is missing. Please log in again.");
     }
 
     const response = await fetch(`${baseUrl}api/v1/meetings/bots`, {
@@ -178,7 +182,6 @@ export const fetchBots = async (): Promise<BotData[]> => {
     const data: RawBotResponse[] = await response.json();
     console.log("Fetched bots data:", data);
 
-    // Map API response to BotData interface
     return data.map((bot: RawBotResponse) => ({
       id: bot.id,
       name: bot.bot_name,
@@ -204,22 +207,13 @@ export const fetchBotStatus = async (
   botId: string
 ): Promise<BotStatusResponse> => {
   try {
-    const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || "";
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    console.log(
-      "auth token for bot status:",
-      AUTH_TOKEN ? "Token present" : "Token missing"
-    );
-
     if (!baseUrl) {
       throw new Error(
         "API base URL is not defined. Please check your environment variables."
       );
     }
     if (!AUTH_TOKEN) {
-      throw new Error(
-        "Authorization token is not defined. Please set NEXT_PUBLIC_AUTH_TOKEN in your environment variables."
-      );
+      throw new Error("Authorization token is missing. Please log in again.");
     }
 
     const response = await fetch(
@@ -257,22 +251,13 @@ export const fetchBotStatus = async (
 
 export const fetchCalendarEvents = async (): Promise<CalendarApiResponse> => {
   try {
-    const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || "";
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    console.log(
-      "auth token for calendar events:",
-      AUTH_TOKEN ? "Token present" : "Token missing"
-    );
-
     if (!baseUrl) {
       throw new Error(
         "API base URL is not defined. Please check your environment variables."
       );
     }
     if (!AUTH_TOKEN) {
-      throw new Error(
-        "Authorization token is not defined. Please set NEXT_PUBLIC_AUTH_TOKEN in your environment variables."
-      );
+      throw new Error("Authorization token is missing. Please log in again.");
     }
 
     const queryParams = new URLSearchParams({
@@ -317,22 +302,13 @@ export const fetchCalendarEvents = async (): Promise<CalendarApiResponse> => {
 
 export const startWorkflow = async () => {
   try {
-    const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || "";
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    console.log(
-      "auth token for starting workflow:",
-      AUTH_TOKEN ? "Token present" : "Token missing"
-    );
-
     if (!baseUrl) {
       throw new Error(
         "API base URL is not defined. Please check your environment variables."
       );
     }
     if (!AUTH_TOKEN) {
-      throw new Error(
-        "Authorization token is not defined. Please set NEXT_PUBLIC_AUTH_TOKEN in your environment variables."
-      );
+      throw new Error("Authorization token is missing. Please log in again.");
     }
 
     const response = await fetch(`${baseUrl}api/v1/automation/start/workflow`, {
@@ -365,22 +341,13 @@ export const startWorkflow = async () => {
 
 export const setupGmail = async (): Promise<boolean> => {
   try {
-    const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || "";
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-    console.log(
-      "auth token for setupGmail:",
-      AUTH_TOKEN ? "Token present" : "Token missing"
-    );
-
     if (!baseUrl) {
       throw new Error(
         "API base URL is not defined. Please check your environment variables."
       );
     }
     if (!AUTH_TOKEN) {
-      throw new Error(
-        "Authorization token is not defined. Please set NEXT_PUBLIC_AUTH_TOKEN in your environment variables."
-      );
+      throw new Error("Authorization token is missing. Please log in again.");
     }
 
     const response = await fetch(`${baseUrl}api/v1/gmail/setup-gmail`, {
@@ -409,6 +376,44 @@ export const setupGmail = async (): Promise<boolean> => {
       error instanceof Error
         ? error.message
         : "An unexpected error occurred while setting up Gmail.";
+    throw new Error(errorMessage);
+  }
+};
+
+export const googleLogin = async (): Promise<GoogleLoginResponse> => {
+  try {
+    if (!baseUrl) {
+      throw new Error(
+        "API base URL is not defined. Please check your environment variables."
+      );
+    }
+
+    const response = await fetch(`${baseUrl}login/google`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response
+        .text()
+        .catch(() => "No additional error details available");
+      throw new Error(
+        `HTTP error! Status: ${response.status}, Message: ${errorText}`
+      );
+    }
+
+    const data: GoogleLoginResponse = await response.json();
+    console.log("Google login response:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("Failed to perform Google login:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "An unexpected error occurred while performing Google login.";
     throw new Error(errorMessage);
   }
 };

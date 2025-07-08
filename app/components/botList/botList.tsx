@@ -18,6 +18,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import CalendarEventsDisplay from "../calender/calender";
 import { fetchBots, startWorkflow, setupGmail } from "@/services/api";
+import Cookies from "js-cookie";
 
 // Define interfaces
 interface RecordingConfig {
@@ -106,6 +107,22 @@ const BotsDashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<"bots" | "calendar">("bots");
   const [searchQuery, setSearchQuery] = useState("");
   const [particles, setParticles] = useState<JSX.Element[]>([]);
+  const router = useRouter();
+
+  // Sign out function
+  const handleSignOut = async () => {
+    try {
+      // Clear authentication token from cookies
+      Cookies.remove("authToken");
+
+      // Redirect to login page after a short delay
+      setTimeout(() => {
+        router.push("/");
+      });
+    } catch (error) {
+      console.error("Sign out failed:", error);
+    }
+  };
 
   // Check screen size
   useEffect(() => {
@@ -342,7 +359,10 @@ const BotsDashboard: React.FC = () => {
             ))}
           </nav>
           <div className="absolute bottom-6 left-4 right-4">
-            <button className="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200"
+            >
               <LogOut className="w-5 h-5 mr-3" />
               Sign Out
             </button>
@@ -400,7 +420,10 @@ const BotsDashboard: React.FC = () => {
               ))}
             </nav>
             <div className="absolute bottom-6 left-4 right-4">
-              <button className="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200">
+              <button
+                onClick={handleSignOut}
+                className="flex items-center w-full px-4 py-3 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all duration-200"
+              >
                 <LogOut className="w-5 h-5 mr-3" />
                 Sign Out
               </button>

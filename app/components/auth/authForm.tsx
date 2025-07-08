@@ -2,44 +2,79 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Cookies from "js-cookie";
+import { setCookie } from "@/services/serverAction";
 
 const AuthForm: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasRedirected, setHasRedirected] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
-  // Use token from environment variable
-  const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN || "";
-
-  // Check and set token on component mount
   useEffect(() => {
-    const token = Cookies.get("authToken");
-    if (token) {
-      router.push("/bots");
-    } else {
-      if (!AUTH_TOKEN) {
-        setError("Authentication token is not configured.");
-        setLoading(false);
+    const handleAuth = async () => {
+      if (hasRedirected) return;
+
+      const token = Cookies.get("authToken");
+      const success = searchParams.get("success");
+      const accessToken = searchParams.get("access_token");
+      const expiresAt = searchParams.get("expires_at");
+
+      console.log("AuthForm useEffect:", {
+        success,
+        accessToken,
+        expiresAt,
+        token,
+      });
+
+      if (token) {
+        console.log("Existing token found, redirecting to /bots");
+        setHasRedirected(true);
+        router.replace("/bots");
         return;
       }
-      setLoading(true);
-      try {
-        Cookies.set("authToken", AUTH_TOKEN, {
-          expires: 7,
-          secure: true,
-          sameSite: "strict",
-        });
-        router.push("/bots");
-      } catch {
-        setError(
-          "An error occurred while processing authentication. Please try again."
-        );
-        setLoading(false);
+
+      if (success === "true" && accessToken) {
+        console.log("Setting new token and redirecting to /bots");
+        const expiresDate = expiresAt
+          ? new Date(expiresAt)
+          : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default to 1 day
+        if (isNaN(expiresDate.getTime())) {
+          console.error("Invalid expiresAt date:", expiresAt);
+          setError("Invalid token expiration date. Please try again.");
+          return;
+        }
+        await setCookie("authToken", accessToken);
+        setHasRedirected(true);
+        router.replace("/bots");
+      } else if (success === "false") {
+        console.log("Authentication failed");
+        setError("Authentication failed. Please try again.");
       }
+    };
+    handleAuth();
+  }, [searchParams, router, hasRedirected]);
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      if (!baseUrl) {
+        throw new Error("API base URL is not defined.");
+      }
+      window.location.href = `${baseUrl}login/google`;
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to initiate Google login. Please try again."
+      );
+      setLoading(false);
     }
-  }, [router]);
+  };
 
   const particles = Array.from({ length: 20 }, (_, i) => (
     <motion.div
@@ -66,39 +101,7 @@ const AuthForm: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        {particles}
-        <motion.div
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-            rotate: [0, 360],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-20 left-20 w-32 h-32 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-full blur-xl"
-        />
-        <motion.div
-          animate={{
-            x: [0, -80, 0],
-            y: [0, 100, 0],
-            rotate: [0, -360],
-            scale: [1, 0.8, 1],
-          }}
-          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/3 right-20 w-40 h-40 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 rounded-full blur-2xl"
-        />
-        <motion.div
-          animate={{
-            x: [0, 60, 0],
-            y: [0, -80, 0],
-            rotate: [0, 180],
-            scale: [1, 1.3, 1],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-32 left-1/3 w-24 h-24 bg-gradient-to-r from-cyan-500/15 to-blue-500/15 rounded-full blur-xl"
-        />
-      </div>
+      <div className="absolute inset-0 overflow-hidden">{particles}</div>
 
       <motion.div
         initial={{ opacity: 0, y: 50, scale: 0.9 }}
@@ -133,7 +136,7 @@ const AuthForm: React.FC = () => {
               transition={{ delay: 0.4 }}
               className="text-gray-600 text-sm"
             >
-              Authenticating...
+              Sign in to continue
             </motion.p>
           </div>
 
@@ -156,7 +159,11 @@ const AuthForm: React.FC = () => {
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.5 }}
             >
-              <div className="w-full bg-white border border-gray-300 text-gray-700 py-3 px-6 rounded-xl font-semibold shadow-lg transition-all duration-200 relative overflow-hidden">
+              <button
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                className="w-full bg-white border border-gray-300 text-gray-700 py-3 px-6 rounded-xl font-semibold shadow-lg transition-all duration-200 relative overflow-hidden hover:bg-gray-50 disabled:opacity-50"
+              >
                 <div className="flex items-center justify-center">
                   {loading ? (
                     <div className="flex items-center">
@@ -188,14 +195,14 @@ const AuthForm: React.FC = () => {
                         />
                         <path
                           fill="#EA4335"
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.30-4.53 6.16-4.53z"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.60 3.30-4.53 6.16-4.53z"
                         />
                       </svg>
                       Continue with Google
                     </div>
                   )}
                 </div>
-              </div>
+              </button>
             </motion.div>
           </div>
         </div>
