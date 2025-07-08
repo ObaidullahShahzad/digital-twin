@@ -149,7 +149,7 @@ interface GoogleLoginResponse {
   token: string;
 }
 const AUTH_TOKEN = Cookies.get("authToken");
-const baseUrl = "https://rw880wk80cgs8w48k8c08goo.stixor.com/";
+const baseUrl = "https://b0ks40ocwcc40s0c8oos08ok.stixor.com/";
 
 export const fetchBots = async (): Promise<BotData[]> => {
   try {

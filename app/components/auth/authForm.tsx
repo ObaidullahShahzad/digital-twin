@@ -12,7 +12,7 @@ const AuthForm: React.FC = () => {
   const [hasRedirected, setHasRedirected] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const baseUrl = "https://rw880wk80cgs8w48k8c08goo.stixor.com/";
+  const baseUrl = "https://b0ks40ocwcc40s0c8oos08ok.stixor.com/";
 
   useEffect(() => {
     const handleAuth = async () => {
