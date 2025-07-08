@@ -23,27 +23,17 @@ const AuthForm: React.FC = () => {
       const accessToken = searchParams.get("access_token");
       const expiresAt = searchParams.get("expires_at");
 
-      console.log("AuthForm useEffect:", {
-        success,
-        accessToken,
-        expiresAt,
-        token,
-      });
-
       if (token) {
-        console.log("Existing token found, redirecting to /bots");
         setHasRedirected(true);
         router.replace("/bots");
         return;
       }
 
       if (success === "true" && accessToken) {
-        console.log("Setting new token and redirecting to /bots");
         const expiresDate = expiresAt
           ? new Date(expiresAt)
           : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default to 1 day
         if (isNaN(expiresDate.getTime())) {
-          console.error("Invalid expiresAt date:", expiresAt);
           setError("Invalid token expiration date. Please try again.");
           return;
         }
@@ -51,7 +41,6 @@ const AuthForm: React.FC = () => {
         setHasRedirected(true);
         router.replace("/bots");
       } else if (success === "false") {
-        console.log("Authentication failed");
         setError("Authentication failed. Please try again.");
       }
     };
