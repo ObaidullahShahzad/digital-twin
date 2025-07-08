@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -22,7 +22,7 @@ import { fetchCalendarEvents } from "@/services/api";
 // Define the structure for Calendar Event
 interface Attendee {
   email: string;
-  responseStatus: string; // Aligned with api.ts
+  responseStatus: string;
   organizer?: boolean;
   self?: boolean;
 }
@@ -90,16 +90,47 @@ const CalendarEventsDisplay: React.FC = () => {
   );
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchCalendarData = async (): Promise<void> => {
+  // Validate API response
+  const isValidCalendarApiResponse = useCallback(
+    (data: unknown): data is CalendarApiResponse => {
+      return (
+        typeof data === "object" &&
+        data !== null &&
+        "success" in data &&
+        "events" in data &&
+        Array.isArray((data as { events: unknown }).events) &&
+        "total_count" in data &&
+        "calendar_id" in data &&
+        "calendar_summary" in data &&
+        "message" in data &&
+        "filters_applied" in data
+      );
+    },
+    []
+  );
+
+  // Fetch calendar events with retry logic
+  const fetchCalendarData = useCallback(
+    async (retries = 3): Promise<void> => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch calendar events directly with hardcoded parameters
-        const calendarData: CalendarApiResponse = await fetchCalendarEvents();
+        const calendarData = await fetchCalendarEvents();
+        if (!isValidCalendarApiResponse(calendarData)) {
+          throw new Error("Invalid API response format");
+        }
+        if (!calendarData.success) {
+          throw new Error(
+            calendarData.message || "Failed to fetch calendar events"
+          );
+        }
         setEventsData(calendarData);
       } catch (err: unknown) {
+        if (retries > 0) {
+          console.warn(`Retrying... (${retries} attempts left)`);
+          return fetchCalendarData(retries - 1);
+        }
         const errorMessage =
           err instanceof Error ? err.message : "Unknown error occurred";
         console.error("Error fetching calendar data:", errorMessage);
@@ -107,9 +138,21 @@ const CalendarEventsDisplay: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [isValidCalendarApiResponse]
+  );
 
+  useEffect(() => {
     fetchCalendarData();
+  }, [fetchCalendarData]);
+
+  // Handle keyboard navigation for modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedEvent(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const formatDateTime = (dateTimeString: string) => {
@@ -155,59 +198,59 @@ const CalendarEventsDisplay: React.FC = () => {
     }
   };
 
-  // Animated particles background
-  const particles = Array.from({ length: 20 }, (_, i) => (
-    <motion.div
-      key={i}
-      className="absolute w-2 h-2 bg-gradient-to-r from-blue-400/20 to-indigo-400/20 rounded-full"
-      animate={{
-        x: [0, Math.random() * 100 - 50, 0],
-        y: [0, Math.random() * 100 - 50, 0],
-        opacity: [0.2, 0.6, 0.2],
-        scale: [1, 1.5, 1],
-      }}
-      transition={{
-        duration: Math.random() * 15 + 10,
-        repeat: Infinity,
-        ease: "easeInOut",
-        delay: Math.random() * 5,
-      }}
-      style={{
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-      }}
-    />
-  ));
+  // Memoized particles for performance
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 10 }, (_, i) => (
+        <motion.div
+          key={i}
+          className="absolute w-2 h-2 bg-gradient-to-r from-blue-400/20 to-indigo-400/20 rounded-full"
+          animate={{
+            x: [0, Math.random() * 100 - 50, 0],
+            y: [0, Math.random() * 100 - 50, 0],
+            opacity: [0.2, 0.6, 0.2],
+            scale: [1, 1.5, 1],
+          }}
+          transition={{
+            duration: Math.random() * 15 + 10,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: Math.random() * 5,
+          }}
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+          }}
+        />
+      )),
+    []
+  );
+
+  // Skeleton loader component
+  const SkeletonEvent = () => (
+    <div className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-6 shadow-2xl animate-pulse">
+      <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+      <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+      <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 flex items-center justify-center relative overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 p-4 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">{particles}</div>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="relative z-10 backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-8 shadow-2xl"
-        >
-          <div className="flex items-center space-x-4">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "linear",
-              }}
-              className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full"
-            />
-            <span className="text-gray-700 font-medium">
-              Loading calendar events...
-            </span>
+        <div className="relative z-10 max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonEvent key={i} />
+            ))}
           </div>
-        </motion.div>
+        </div>
       </div>
     );
   }
 
-  if (!eventsData) {
+  if (!eventsData || error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">{particles}</div>
@@ -215,6 +258,8 @@ const CalendarEventsDisplay: React.FC = () => {
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           className="relative z-10 backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-8 shadow-2xl text-center"
+          role="alert"
+          aria-live="assertive"
         >
           <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -228,6 +273,7 @@ const CalendarEventsDisplay: React.FC = () => {
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push("/bots")}
             className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+            aria-label="Return to bots page"
           >
             Back to Bots
           </motion.button>
@@ -238,38 +284,7 @@ const CalendarEventsDisplay: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 p-4 relative overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
-        {particles}
-        <motion.div
-          animate={{
-            x: [0, 100, 0],
-            y: [0, -50, 0],
-            rotate: [0, 360],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-          className="absolute top-20 left-20 w-32 h-32 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 rounded-full blur-xl"
-        />
-        <motion.div
-          animate={{
-            x: [0, -80, 0],
-            y: [0, 100, 0],
-            rotate: [0, -360],
-            scale: [1, 0.8, 1],
-          }}
-          transition={{
-            duration: 25,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-          className="absolute top-1/3 right-20 w-40 h-40 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 rounded-full blur-2xl"
-        />
-      </div>
-
+      <div className="absolute inset-0 overflow-hidden">{particles}</div>
       <div className="relative z-10 max-w-7xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: -30 }}
@@ -282,6 +297,7 @@ const CalendarEventsDisplay: React.FC = () => {
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push("/bots")}
             className="inline-flex items-center space-x-2 text-gray-600 hover:text-gray-800 transition-colors duration-200 mb-6 group"
+            aria-label="Return to bots page"
           >
             <ArrowLeft className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1" />
             <span className="font-medium">Back to Bots</span>
@@ -304,9 +320,6 @@ const CalendarEventsDisplay: React.FC = () => {
                   </h1>
                   <p className="text-gray-600 mt-1">
                     {eventsData.message} • {eventsData.calendar_summary}
-                    {error && (
-                      <span className="text-yellow-600 ml-2"> ({error})</span>
-                    )}
                   </p>
                 </div>
               </div>
@@ -327,6 +340,8 @@ const CalendarEventsDisplay: React.FC = () => {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-8 shadow-2xl text-center"
+            role="alert"
+            aria-live="polite"
           >
             <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
@@ -351,6 +366,8 @@ const CalendarEventsDisplay: React.FC = () => {
                   whileHover={{ y: -5, scale: 1.02 }}
                   className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-6 shadow-2xl hover:shadow-3xl transition-all duration-300 cursor-pointer group"
                   onClick={() => setSelectedEvent(event)}
+                  role="button"
+                  aria-label={`View details for ${event.summary}`}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
@@ -468,6 +485,9 @@ const CalendarEventsDisplay: React.FC = () => {
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
               onClick={() => setSelectedEvent(null)}
+              role="dialog"
+              aria-labelledby="event-title"
+              aria-describedby="event-details"
             >
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -482,7 +502,10 @@ const CalendarEventsDisplay: React.FC = () => {
                       <CalendarDays className="w-8 h-8 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-800">
+                      <h2
+                        id="event-title"
+                        className="text-2xl font-bold text-gray-800"
+                      >
                         {selectedEvent.summary}
                       </h2>
                       <p className="text-gray-600">Event Details</p>
@@ -491,12 +514,13 @@ const CalendarEventsDisplay: React.FC = () => {
                   <button
                     onClick={() => setSelectedEvent(null)}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
+                    aria-label="Close event details"
                   >
                     <XCircle className="w-6 h-6" />
                   </button>
                 </div>
 
-                <div className="space-y-6">
+                <div id="event-details" className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-blue-50/80 p-4 rounded-xl">
                       <div className="flex items-center space-x-2 mb-3">
@@ -622,6 +646,7 @@ const CalendarEventsDisplay: React.FC = () => {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-600 transition-colors"
+                                aria-label={`Join meeting via ${entry.entryPointType}`}
                               >
                                 Join
                               </motion.a>
@@ -651,6 +676,7 @@ const CalendarEventsDisplay: React.FC = () => {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+                    aria-label="Open event in Google Calendar"
                   >
                     <Calendar className="w-4 h-4" />
                     <span>Open in Calendar</span>
