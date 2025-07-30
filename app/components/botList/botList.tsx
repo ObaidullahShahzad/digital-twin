@@ -1220,7 +1220,7 @@ const BotsDashboard: React.FC = () => {
                 className="ml-3 text-xl font-bold"
                 style={{ color: theme.text.primary }}
               >
-                BotHub
+                Digital Twin
               </span>
             </div>
           </div>
@@ -1292,7 +1292,7 @@ const BotsDashboard: React.FC = () => {
                   className="ml-3 text-xl font-bold"
                   style={{ color: theme.text.primary }}
                 >
-                  BotHub
+                  Digital Twin
                 </span>
               </div>
               <button
