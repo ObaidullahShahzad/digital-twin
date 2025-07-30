@@ -505,7 +505,7 @@ const SentimentAnalysisModal: React.FC<{
                 </p>
               </div>
             ) : analysis ? (
-              <div className="space-y-6 overflow-y-scroll max-h-[500px]">
+              <div className="space-y-5 overflow-y-scroll max-h-[500px]">
                 {Object.values(analysis.user_sentiments).map((user, index) => (
                   <div key={index}>
                     <h3
