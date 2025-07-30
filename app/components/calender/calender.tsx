@@ -16,8 +16,38 @@ import {
   Link,
   CalendarDays,
   User,
+  Loader2,
 } from "lucide-react";
 import { fetchCalendarEvents } from "@/services/api";
+
+// Theme colors - matching the dashboard
+const theme = {
+  primary: "#244855", // Dark teal
+  secondary: "#E64833", // Coral red
+  accent: "#874F41", // Brown
+  neutral: "#90AEAD", // Light teal
+  light: "#FBE9D0", // Light cream
+  text: {
+    primary: "#2D3748", // Dark gray
+    secondary: "#4A5568", // Medium gray
+    light: "#718096", // Light gray
+  },
+  background: {
+    primary: "#F7FAFC", // Very light gray
+    secondary: "#EDF2F7", // Light gray
+    card: "#FFFFFF", // White
+  },
+  border: {
+    light: "#E2E8F0", // Light border
+    medium: "#CBD5E0", // Medium border
+    dark: "#A0AEC0", // Dark border
+  },
+  status: {
+    success: "#48BB78",
+    warning: "#ED8936",
+    error: "#E53E3E",
+  },
+};
 
 // Define the structure for Calendar Event
 interface Attendee {
@@ -78,6 +108,44 @@ interface CalendarApiResponse {
     future_events_only: boolean;
   };
 }
+
+// Loading Component
+const LoadingSpinner: React.FC<{ size?: "sm" | "md" | "lg" }> = ({
+  size = "md",
+}) => {
+  const sizeClasses = {
+    sm: "w-4 h-4",
+    md: "w-6 h-6",
+    lg: "w-8 h-8",
+  };
+
+  return (
+    <div className="flex items-center justify-center">
+      <Loader2
+        className={`${sizeClasses[size]} animate-spin`}
+        style={{ color: theme.primary }}
+      />
+    </div>
+  );
+};
+
+// Page Loading Component
+const PageLoading: React.FC = () => (
+  <div
+    className="min-h-screen flex items-center justify-center"
+    style={{ backgroundColor: theme.background.primary }}
+  >
+    <div className="text-center">
+      <LoadingSpinner size="lg" />
+      <p
+        className="mt-4 text-lg font-medium"
+        style={{ color: theme.text.secondary }}
+      >
+        Loading calendar events...
+      </p>
+    </div>
+  </div>
+);
 
 const CalendarEventsDisplay: React.FC = () => {
   const router = useRouter();
@@ -175,26 +243,42 @@ const CalendarEventsDisplay: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "confirmed":
-        return "bg-green-100/80 text-green-700 border-green-200/50";
+        return {
+          backgroundColor: `${theme.status.success}20`,
+          color: theme.status.success,
+          border: `1px solid ${theme.status.success}40`,
+        };
       case "tentative":
-        return "bg-yellow-100/80 text-yellow-700 border-yellow-200/50";
+        return {
+          backgroundColor: `${theme.status.warning}20`,
+          color: theme.status.warning,
+          border: `1px solid ${theme.status.warning}40`,
+        };
       case "cancelled":
-        return "bg-red-100/80 text-red-700 border-red-200/50";
+        return {
+          backgroundColor: `${theme.status.error}20`,
+          color: theme.status.error,
+          border: `1px solid ${theme.status.error}40`,
+        };
       default:
-        return "bg-gray-100/80 text-gray-700 border-gray-200/50";
+        return {
+          backgroundColor: `${theme.neutral}20`,
+          color: theme.text.secondary,
+          border: `1px solid ${theme.border.medium}`,
+        };
     }
   };
 
   const getResponseStatusColor = (status: string) => {
     switch (status) {
       case "accepted":
-        return "text-green-600";
+        return theme.status.success;
       case "declined":
-        return "text-red-600";
+        return theme.status.error;
       case "tentative":
-        return "text-yellow-600";
+        return theme.status.warning;
       default:
-        return "text-gray-600";
+        return theme.text.light;
     }
   };
 
@@ -204,7 +288,8 @@ const CalendarEventsDisplay: React.FC = () => {
       Array.from({ length: 10 }, (_, i) => (
         <motion.div
           key={i}
-          className="absolute w-2 h-2 bg-gradient-to-r from-blue-400/20 to-indigo-400/20 rounded-full"
+          className="absolute w-2 h-2 rounded-full"
+          style={{ backgroundColor: `${theme.neutral}20` }}
           animate={{
             x: [0, Math.random() * 100 - 50, 0],
             y: [0, Math.random() * 100 - 50, 0],
@@ -217,62 +302,56 @@ const CalendarEventsDisplay: React.FC = () => {
             ease: "easeInOut",
             delay: Math.random() * 5,
           }}
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-          }}
         />
       )),
     []
   );
 
-  // Skeleton loader component
-  const SkeletonEvent = () => (
-    <div className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-6 shadow-2xl animate-pulse">
-      <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
-      <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-      <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-    </div>
-  );
-
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 p-4 relative overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">{particles}</div>
-        <div className="relative z-10 max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonEvent key={i} />
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   if (!eventsData || error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 flex items-center justify-center relative overflow-hidden">
+      <div
+        className="min-h-screen flex items-center justify-center relative overflow-hidden"
+        style={{ backgroundColor: theme.background.primary }}
+      >
         <div className="absolute inset-0 overflow-hidden">{particles}</div>
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative z-10 backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-8 shadow-2xl text-center"
+          className="relative z-10 rounded-3xl p-8 shadow-2xl text-center"
+          style={{
+            backgroundColor: theme.background.card,
+            border: `1px solid ${theme.border.light}`,
+          }}
           role="alert"
           aria-live="assertive"
         >
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          <XCircle
+            className="w-16 h-16 mx-auto mb-4"
+            style={{ color: theme.status.error }}
+          />
+          <h2
+            className="text-2xl font-bold mb-2"
+            style={{ color: theme.text.primary }}
+          >
             Unable to Load Events
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="mb-6" style={{ color: theme.text.secondary }}>
             {error || "An unexpected error occurred. Please try again later."}
           </p>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push("/bots")}
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+            className="px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
+            style={{
+              backgroundColor: theme.secondary,
+              color: theme.light,
+              border: `1px solid ${theme.border.dark}`,
+            }}
             aria-label="Return to bots page"
           >
             Back to Bots
@@ -283,7 +362,10 @@ const CalendarEventsDisplay: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 p-4 relative overflow-hidden">
+    <div
+      className="min-h-screen p-4 relative overflow-hidden"
+      style={{ backgroundColor: theme.background.primary }}
+    >
       <div className="absolute inset-0 overflow-hidden">{particles}</div>
       <div className="relative z-10 max-w-7xl mx-auto">
         <motion.div
@@ -296,38 +378,58 @@ const CalendarEventsDisplay: React.FC = () => {
             whileHover={{ scale: 1.05, x: -5 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => router.push("/bots")}
-            className="inline-flex items-center space-x-2 text-gray-600 hover:text-gray-800 transition-colors duration-200 mb-6 group"
+            className="inline-flex items-center space-x-2 transition-colors duration-200 mb-6 group"
+            style={{ color: theme.text.secondary }}
             aria-label="Return to bots page"
           >
             <ArrowLeft className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-1" />
             <span className="font-medium">Back to Bots</span>
           </motion.button>
 
-          <div className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-6 shadow-2xl">
+          <div
+            className="rounded-3xl p-6 shadow-2xl"
+            style={{
+              backgroundColor: theme.background.card,
+              border: `1px solid ${theme.border.light}`,
+            }}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
                   transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg"
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+                  style={{ backgroundColor: theme.primary }}
                 >
-                  <Calendar className="w-8 h-8 text-white" />
+                  <Calendar
+                    className="w-8 h-8"
+                    style={{ color: theme.light }}
+                  />
                 </motion.div>
                 <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  <h1
+                    className="text-3xl font-bold"
+                    style={{ color: theme.text.primary }}
+                  >
                     Calendar Events
                   </h1>
-                  <p className="text-gray-600 mt-1">
+                  <p className="mt-1" style={{ color: theme.text.secondary }}>
                     {eventsData.message} • {eventsData.calendar_summary}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-gray-800">
+                <div
+                  className="text-2xl font-bold"
+                  style={{ color: theme.text.primary }}
+                >
                   {eventsData.total_count}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div
+                  className="text-sm"
+                  style={{ color: theme.text.secondary }}
+                >
                   {eventsData.total_count === 1 ? "Event" : "Events"}
                 </div>
               </div>
@@ -339,15 +441,25 @@ const CalendarEventsDisplay: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
-            className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-8 shadow-2xl text-center"
+            className="rounded-3xl p-8 shadow-2xl text-center"
+            style={{
+              backgroundColor: theme.background.card,
+              border: `1px solid ${theme.border.light}`,
+            }}
             role="alert"
             aria-live="polite"
           >
-            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            <XCircle
+              className="w-16 h-16 mx-auto mb-4"
+              style={{ color: theme.status.error }}
+            />
+            <h2
+              className="text-2xl font-bold mb-2"
+              style={{ color: theme.text.primary }}
+            >
               No Events Scheduled
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="mb-6" style={{ color: theme.text.secondary }}>
               No upcoming events found for this calendar.
             </p>
           </motion.div>
@@ -356,6 +468,7 @@ const CalendarEventsDisplay: React.FC = () => {
             {eventsData.events.map((event, index) => {
               const startTime = formatDateTime(event.start.dateTime);
               const endTime = formatDateTime(event.end.dateTime);
+              const statusStyles = getStatusColor(event.status);
 
               return (
                 <motion.div
@@ -364,7 +477,11 @@ const CalendarEventsDisplay: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                   whileHover={{ y: -5, scale: 1.02 }}
-                  className="backdrop-blur-xl bg-white/80 border border-white/50 rounded-3xl p-6 shadow-2xl hover:shadow-3xl transition-all duration-300 cursor-pointer group"
+                  className="rounded-3xl p-6 shadow-2xl hover:shadow-3xl transition-all duration-300 cursor-pointer group"
+                  style={{
+                    backgroundColor: theme.background.card,
+                    border: `1px solid ${theme.border.light}`,
+                  }}
                   onClick={() => setSelectedEvent(event)}
                   role="button"
                   aria-label={`View details for ${event.summary}`}
@@ -375,23 +492,32 @@ const CalendarEventsDisplay: React.FC = () => {
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ delay: 0.3 + index * 0.1 }}
-                        className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200"
+                        className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200"
+                        style={{ backgroundColor: theme.primary }}
                       >
-                        <CalendarDays className="w-6 h-6 text-white" />
+                        <CalendarDays
+                          className="w-6 h-6"
+                          style={{ color: theme.light }}
+                        />
                       </motion.div>
                       <div>
-                        <h3 className="text-xl font-bold text-gray-800 line-clamp-1">
+                        <h3
+                          className="text-xl font-bold line-clamp-1"
+                          style={{ color: theme.text.primary }}
+                        >
                           {event.summary}
                         </h3>
-                        <p className="text-sm text-gray-600">
+                        <p
+                          className="text-sm"
+                          style={{ color: theme.text.light }}
+                        >
                           Event ID: {event.id.slice(0, 8)}...
                         </p>
                       </div>
                     </div>
                     <div
-                      className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                        event.status
-                      )}`}
+                      className="inline-flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium"
+                      style={statusStyles}
                     >
                       <CheckCircle className="w-3 h-3" />
                       <span className="capitalize">{event.status}</span>
@@ -399,8 +525,14 @@ const CalendarEventsDisplay: React.FC = () => {
                   </div>
 
                   <div className="space-y-3 mb-4">
-                    <div className="flex items-center space-x-3 text-gray-600">
-                      <Clock className="w-4 h-4 text-blue-500" />
+                    <div
+                      className="flex items-center space-x-3"
+                      style={{ color: theme.text.secondary }}
+                    >
+                      <Clock
+                        className="w-4 h-4"
+                        style={{ color: theme.primary }}
+                      />
                       <div className="text-sm">
                         <div className="font-medium">{startTime.date}</div>
                         <div className="text-xs">
@@ -409,8 +541,14 @@ const CalendarEventsDisplay: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-3 text-gray-600">
-                      <Users className="w-4 h-4 text-indigo-500" />
+                    <div
+                      className="flex items-center space-x-3"
+                      style={{ color: theme.text.secondary }}
+                    >
+                      <Users
+                        className="w-4 h-4"
+                        style={{ color: theme.accent }}
+                      />
                       <div className="text-sm">
                         <span className="font-medium">
                           {event.attendees.length} Attendees
@@ -419,8 +557,14 @@ const CalendarEventsDisplay: React.FC = () => {
                     </div>
 
                     {event.hangoutLink && (
-                      <div className="flex items-center space-x-3 text-gray-600">
-                        <Video className="w-4 h-4 text-green-500" />
+                      <div
+                        className="flex items-center space-x-3"
+                        style={{ color: theme.text.secondary }}
+                      >
+                        <Video
+                          className="w-4 h-4"
+                          style={{ color: theme.status.success }}
+                        />
                         <div className="text-sm">
                           <span className="font-medium">
                             Google Meet Available
@@ -434,39 +578,60 @@ const CalendarEventsDisplay: React.FC = () => {
                     {event.attendees.slice(0, 3).map((attendee, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center space-x-2 bg-gray-100/80 px-3 py-1 rounded-full text-xs"
+                        className="flex items-center space-x-2 px-3 py-1 rounded-full text-xs"
+                        style={{
+                          backgroundColor: `${theme.background.secondary}80`,
+                          border: `1px solid ${theme.border.light}`,
+                        }}
                       >
-                        <User className="w-3 h-3 text-gray-500" />
-                        <span className="text-gray-700 max-w-24 truncate">
+                        <User
+                          className="w-3 h-3"
+                          style={{ color: theme.text.light }}
+                        />
+                        <span
+                          className="max-w-24 truncate"
+                          style={{ color: theme.text.primary }}
+                        >
                           {attendee.email.split("@")[0]}
                         </span>
                         <span
-                          className={`w-2 h-2 rounded-full ${
-                            attendee.responseStatus === "accepted"
-                              ? "bg-green-400"
-                              : attendee.responseStatus === "declined"
-                              ? "bg-red-400"
-                              : attendee.responseStatus === "tentative"
-                              ? "bg-yellow-400"
-                              : "bg-gray-400"
-                          }`}
+                          className="w-2 h-2 rounded-full"
+                          style={{
+                            backgroundColor: getResponseStatusColor(
+                              attendee.responseStatus
+                            ),
+                          }}
                         />
                       </div>
                     ))}
                     {event.attendees.length > 3 && (
-                      <div className="flex items-center justify-center bg-gray-100/80 px-3 py-1 rounded-full text-xs text-gray-600">
+                      <div
+                        className="flex items-center justify-center px-3 py-1 rounded-full text-xs"
+                        style={{
+                          backgroundColor: `${theme.background.secondary}80`,
+                          color: theme.text.secondary,
+                          border: `1px solid ${theme.border.light}`,
+                        }}
+                      >
                         +{event.attendees.length - 3} more
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200/50">
-                    <div className="text-xs text-gray-500">
+                  <div
+                    className="flex items-center justify-between pt-4"
+                    style={{ borderTop: `1px solid ${theme.border.light}` }}
+                  >
+                    <div
+                      className="text-xs"
+                      style={{ color: theme.text.light }}
+                    >
                       Created: {new Date(event.created).toLocaleDateString()}
                     </div>
                     <motion.div
                       whileHover={{ scale: 1.1 }}
-                      className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                      style={{ color: theme.primary }}
                     >
                       <Sparkles className="w-4 h-4" />
                     </motion.div>
@@ -483,7 +648,7 @@ const CalendarEventsDisplay: React.FC = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 w-full h-full flex items-center justify-center p-4"
               onClick={() => setSelectedEvent(null)}
               role="dialog"
               aria-labelledby="event-title"
@@ -493,27 +658,45 @@ const CalendarEventsDisplay: React.FC = () => {
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="backdrop-blur-xl bg-white/95 border border-white/50 rounded-3xl p-8 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                className="rounded-3xl p-8 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                style={{
+                  backgroundColor: theme.background.card,
+                  border: `1px solid ${theme.border.light}`,
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
-                      <CalendarDays className="w-8 h-8 text-white" />
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg"
+                      style={{ backgroundColor: theme.primary }}
+                    >
+                      <CalendarDays
+                        className="w-8 h-8"
+                        style={{ color: theme.light }}
+                      />
                     </div>
                     <div>
                       <h2
                         id="event-title"
-                        className="text-2xl font-bold text-gray-800"
+                        className="text-2xl font-bold"
+                        style={{ color: theme.text.primary }}
                       >
                         {selectedEvent.summary}
                       </h2>
-                      <p className="text-gray-600">Event Details</p>
+                      <p style={{ color: theme.text.secondary }}>
+                        Event Details
+                      </p>
                     </div>
                   </div>
                   <button
                     onClick={() => setSelectedEvent(null)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="transition-colors p-2 rounded-lg"
+                    style={{
+                      backgroundColor: `${theme.background.secondary}80`,
+                      border: `1px solid ${theme.border.light}`,
+                      color: theme.text.light,
+                    }}
                     aria-label="Close event details"
                   >
                     <XCircle className="w-6 h-6" />
@@ -522,14 +705,29 @@ const CalendarEventsDisplay: React.FC = () => {
 
                 <div id="event-details" className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-blue-50/80 p-4 rounded-xl">
+                    <div
+                      className="p-4 rounded-xl"
+                      style={{
+                        backgroundColor: `${theme.primary}20`,
+                        border: `1px solid ${theme.border.light}`,
+                      }}
+                    >
                       <div className="flex items-center space-x-2 mb-3">
-                        <Clock className="w-5 h-5 text-blue-600" />
-                        <span className="font-semibold text-gray-800">
+                        <Clock
+                          className="w-5 h-5"
+                          style={{ color: theme.primary }}
+                        />
+                        <span
+                          className="font-semibold"
+                          style={{ color: theme.text.primary }}
+                        >
                           Time
                         </span>
                       </div>
-                      <div className="space-y-2 text-sm text-gray-600">
+                      <div
+                        className="space-y-2 text-sm"
+                        style={{ color: theme.text.secondary }}
+                      >
                         <div>
                           <span className="font-medium">Start:</span>{" "}
                           {formatDateTime(selectedEvent.start.dateTime).date} at{" "}
@@ -546,17 +744,28 @@ const CalendarEventsDisplay: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="bg-indigo-50/80 p-4 rounded-xl">
+                    <div
+                      className="p-4 rounded-xl"
+                      style={{
+                        backgroundColor: `${theme.accent}20`,
+                        border: `1px solid ${theme.border.light}`,
+                      }}
+                    >
                       <div className="flex items-center space-x-2 mb-3">
-                        <Activity className="w-5 h-5 text-indigo-600" />
-                        <span className="font-semibold text-gray-800">
+                        <Activity
+                          className="w-5 h-5"
+                          style={{ color: theme.accent }}
+                        />
+                        <span
+                          className="font-semibold"
+                          style={{ color: theme.text.primary }}
+                        >
                           Status
                         </span>
                       </div>
                       <div
-                        className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(
-                          selectedEvent.status
-                        )}`}
+                        className="inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm font-medium"
+                        style={getStatusColor(selectedEvent.status)}
                       >
                         <CheckCircle className="w-4 h-4" />
                         <span className="capitalize">
@@ -566,10 +775,22 @@ const CalendarEventsDisplay: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="bg-purple-50/80 p-4 rounded-xl">
+                  <div
+                    className="p-4 rounded-xl"
+                    style={{
+                      backgroundColor: `${theme.neutral}20`,
+                      border: `1px solid ${theme.border.light}`,
+                    }}
+                  >
                     <div className="flex items-center space-x-2 mb-3">
-                      <Users className="w-5 h-5 text-purple-600" />
-                      <span className="font-semibold text-gray-800">
+                      <Users
+                        className="w-5 h-5"
+                        style={{ color: theme.neutral }}
+                      />
+                      <span
+                        className="font-semibold"
+                        style={{ color: theme.text.primary }}
+                      >
                         Attendees ({selectedEvent.attendees.length})
                       </span>
                     </div>
@@ -577,23 +798,43 @@ const CalendarEventsDisplay: React.FC = () => {
                       {selectedEvent.attendees.map((attendee, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center justify-between bg-white/60 p-3 rounded-lg"
+                          className="flex items-center justify-between p-3 rounded-lg"
+                          style={{
+                            backgroundColor: `${theme.background.card}80`,
+                            border: `1px solid ${theme.border.light}`,
+                          }}
                         >
                           <div className="flex items-center space-x-3">
-                            <User className="w-4 h-4 text-gray-500" />
-                            <span className="text-sm font-medium text-gray-800">
+                            <User
+                              className="w-4 h-4"
+                              style={{ color: theme.text.light }}
+                            />
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: theme.text.primary }}
+                            >
                               {attendee.email}
                             </span>
                             {attendee.organizer && (
-                              <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-full text-xs font-medium">
+                              <span
+                                className="px-2 py-1 rounded-full text-xs font-medium"
+                                style={{
+                                  backgroundColor: `${theme.status.warning}20`,
+                                  color: theme.status.warning,
+                                  border: `1px solid ${theme.border.light}`,
+                                }}
+                              >
                                 Organizer
                               </span>
                             )}
                           </div>
                           <span
-                            className={`text-xs font-medium ${getResponseStatusColor(
-                              attendee.responseStatus
-                            )}`}
+                            className="text-xs font-medium"
+                            style={{
+                              color: getResponseStatusColor(
+                                attendee.responseStatus
+                              ),
+                            }}
                           >
                             {attendee.responseStatus.charAt(0).toUpperCase() +
                               attendee.responseStatus.slice(1)}
@@ -604,10 +845,22 @@ const CalendarEventsDisplay: React.FC = () => {
                   </div>
 
                   {selectedEvent.conferenceData && (
-                    <div className="bg-green-50/80 p-4 rounded-xl">
+                    <div
+                      className="p-4 rounded-xl"
+                      style={{
+                        backgroundColor: `${theme.status.success}20`,
+                        border: `1px solid ${theme.border.light}`,
+                      }}
+                    >
                       <div className="flex items-center space-x-2 mb-3">
-                        <Video className="w-5 h-5 text-green-600" />
-                        <span className="font-semibold text-gray-800">
+                        <Video
+                          className="w-5 h-5"
+                          style={{ color: theme.status.success }}
+                        />
+                        <span
+                          className="font-semibold"
+                          style={{ color: theme.text.primary }}
+                        >
                           Meeting Links
                         </span>
                       </div>
@@ -616,24 +869,43 @@ const CalendarEventsDisplay: React.FC = () => {
                           (entry, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between bg-white/60 p-3 rounded-lg"
+                              className="flex items-center justify-between p-3 rounded-lg"
+                              style={{
+                                backgroundColor: `${theme.background.card}80`,
+                                border: `1px solid ${theme.border.light}`,
+                              }}
                             >
                               <div className="flex items-center space-x-3">
                                 {entry.entryPointType === "video" && (
-                                  <Video className="w-4 h-4 text-green-500" />
+                                  <Video
+                                    className="w-4 h-4"
+                                    style={{ color: theme.status.success }}
+                                  />
                                 )}
                                 {entry.entryPointType === "phone" && (
-                                  <Phone className="w-4 h-4 text-blue-500" />
+                                  <Phone
+                                    className="w-4 h-4"
+                                    style={{ color: theme.primary }}
+                                  />
                                 )}
                                 {entry.entryPointType === "more" && (
-                                  <Link className="w-4 h-4 text-purple-500" />
+                                  <Link
+                                    className="w-4 h-4"
+                                    style={{ color: theme.accent }}
+                                  />
                                 )}
                                 <div>
-                                  <div className="text-sm font-medium text-gray-800">
+                                  <div
+                                    className="text-sm font-medium"
+                                    style={{ color: theme.text.primary }}
+                                  >
                                     {entry.label || entry.uri}
                                   </div>
                                   {entry.pin && (
-                                    <div className="text-xs text-gray-600">
+                                    <div
+                                      className="text-xs"
+                                      style={{ color: theme.text.secondary }}
+                                    >
                                       PIN: {entry.pin}
                                     </div>
                                   )}
@@ -645,7 +917,12 @@ const CalendarEventsDisplay: React.FC = () => {
                                 href={entry.uri}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="bg-blue-500 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-600 transition-colors"
+                                className="px-3 py-1 rounded-lg text-xs font-medium"
+                                style={{
+                                  backgroundColor: theme.primary,
+                                  color: theme.light,
+                                  border: `1px solid ${theme.border.dark}`,
+                                }}
                                 aria-label={`Join meeting via ${entry.entryPointType}`}
                               >
                                 Join
@@ -658,8 +935,11 @@ const CalendarEventsDisplay: React.FC = () => {
                   )}
                 </div>
 
-                <div className="mt-6 flex items-center justify-between pt-4 border-t border-gray-200/50">
-                  <div className="text-xs text-gray-500">
+                <div
+                  className="mt-6 flex items-center justify-between pt-4"
+                  style={{ borderTop: `1px solid ${theme.border.light}` }}
+                >
+                  <div className="text-xs" style={{ color: theme.text.light }}>
                     <div>
                       Created:{" "}
                       {new Date(selectedEvent.created).toLocaleString()}
@@ -675,7 +955,12 @@ const CalendarEventsDisplay: React.FC = () => {
                     href={selectedEvent.htmlLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+                    className="px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+                    style={{
+                      backgroundColor: theme.primary,
+                      color: theme.light,
+                      border: `1px solid ${theme.border.dark}`,
+                    }}
                     aria-label="Open event in Google Calendar"
                   >
                     <Calendar className="w-4 h-4" />

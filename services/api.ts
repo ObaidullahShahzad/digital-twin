@@ -1,6 +1,6 @@
 import Cookies from "js-cookie";
 
-// Define the structure of the BotData
+// Define interfaces (unchanged except for ComprehensiveAnalysisResponse)
 interface RecordingConfig {
   transcript?: {
     provider: string | { meeting_captions: Record<string, unknown> };
@@ -23,65 +23,69 @@ interface BotData {
   calendar_id: string;
   recording_config?: RecordingConfig;
   status: "active" | "inactive";
+  platform?: string | undefined;
 }
 
-// Define the structure of the raw API response for bots list
 interface RawBotResponse {
-  id: string;
+  bot_id: string;
   bot_name: string;
-  meeting_url: {
-    platform: string;
-    meeting_id: string;
-  };
+  platform: string;
+  meeting_title: string;
+  meeting_summary: string;
+  meeting_start_time: string;
   recording_config?: RecordingConfig;
-  status_changes: Array<{
+  status_changes?: Array<{
     code: string;
   }>;
 }
 
-// Define the structure of the bot status API response
-interface BotStatusResponse {
-  id: string;
-  meeting_url: {
-    meeting_id: string;
-    platform: string;
-  };
+interface BotsApiResponse {
+  success: boolean;
+  total_bots: number;
+  bots: RawBotResponse[];
+}
+
+// types/bot.ts
+export interface BotStatusResponse {
   bot_name: string;
+  meeting_url: {
+    platform: string;
+    meeting_id: string;
+  };
   join_at: string;
-  recording_config: RecordingConfig;
-  status_changes: Array<{
+  recording_config: {
+    transcript?: {
+      provider?: string | { meeting_captions: Record<string, unknown> };
+    };
+    video_mixed_layout?: string;
+    retention?: {
+      type?: string;
+    };
+  };
+  transcript_available: boolean;
+  video_download_url?: string | null;
+  meeting_summary?: string;
+  recordings: {
+    media_shortcuts?: {
+      transcript?: {
+        data?: {
+          download_url?: string;
+        };
+      };
+    };
+  }[];
+  status_changes: {
     code: string;
     message: string | null;
     created_at: string;
     sub_code: string | null;
-  }>;
-  recordings: unknown[];
-  automatic_leave: {
-    waiting_room_timeout: number;
-    noone_joined_timeout: number;
-    everyone_left_timeout: {
-      timeout: number;
-      activate_after: number | null;
-    };
-    in_call_not_recording_timeout: number;
-    recording_permission_denied_timeout: number;
-    silence_detection: {
-      timeout: number;
-      activate_after: number;
-    };
-    bot_detection: {
-      using_participant_events: {
-        timeout: number;
-        activate_after: number;
-      };
-    };
-  };
-  calendar_meetings: unknown[];
-  metadata: Record<string, unknown>;
-  transcript_available: boolean;
+  }[];
+  participants?: {
+    debug?: string;
+    name?: string;
+  }[];
 }
 
-// Define the structure for Calendar Event
 interface CalendarEvent {
   id: string;
   summary: string;
@@ -123,7 +127,6 @@ interface CalendarEvent {
   meeting_urls?: string[];
 }
 
-// Define the structure for Calendar API response
 interface CalendarApiResponse {
   success: boolean;
   calendar_id: string;
@@ -138,18 +141,321 @@ interface CalendarApiResponse {
   };
 }
 
-// Define the structure for setupGmail API response
 interface SetupGmailResponse {
   success: boolean;
 }
 
-// Define the structure for Google login API response
 interface GoogleLoginResponse {
   success: boolean;
   token: string;
 }
-const AUTH_TOKEN = Cookies.get("authToken");
+
+interface GoogleAuthTokenResponse {
+  access_token: string;
+  user_email: string;
+  expires_at: string;
+  message: string;
+}
+
+interface UserSettingsResponse {
+  user_id: number;
+  email: string;
+  full_name: string;
+  profile_picture: string;
+  enable_backend_tasks: boolean;
+  bot_name: string;
+}
+
+interface UpdateProfileResponse {
+  full_name: string;
+  bot_name: string;
+  enable_backend_tasks: boolean;
+}
+
+interface Meeting {
+  id: string;
+  title: string;
+  start_time: string | null;
+  end_time: string | null;
+  meeting_url: string;
+  transcript: string;
+  summary: string;
+  user_id: string;
+}
+
+interface MeetingsResponse {
+  success: boolean;
+  meetings: Meeting[];
+  total_count: number;
+}
+
+interface ComprehensiveAnalysisResponse {
+  success: boolean;
+  bot_id: string;
+  comprehensive_analysis: string;
+  meeting_statistics: Record<string, unknown>; // Fixed: Replaced `any` with `Record<string, unknown>`
+  participants: string[];
+  generated_at: string;
+}
+
+interface SentimentAnalysisResponse {
+  success: boolean;
+  bot_id: string;
+  user_sentiments: {
+    [key: string]: {
+      name: string;
+      sentiment_analysis: {
+        overall_sentiment: string;
+        sentiment_score: number;
+        confidence_level: string;
+        emotional_tone: string;
+        key_indicators: string[];
+        sentiment_changes: string;
+        professional_assessment: string;
+        engagement_level: string;
+      };
+      total_contributions: number;
+      speaking_stats: {
+        name: string;
+        is_host: boolean;
+        platform: string;
+        total_words: number;
+        total_speaking_time: number;
+      };
+    };
+  };
+  total_participants: number;
+  generated_at: string;
+}
+
+interface StartMeetingWorkflowResponse {
+  success: boolean;
+  message: string;
+}
+
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+export const startMeetingWorkflow = async (
+  meetingUrl: string
+): Promise<StartMeetingWorkflowResponse> => {
+  try {
+    if (!baseUrl) {
+      throw new Error(
+        "API base URL is not defined. Please check your environment variables."
+      );
+    }
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
+      throw new Error("Authorization token is missing. Please log in again.");
+    }
+
+    console.log("startMeetingWorkflow: Retrieved authToken:", authToken);
+
+    const queryParams = new URLSearchParams({
+      meeting_url: meetingUrl,
+    });
+
+    const response = await fetch(
+      `${baseUrl}api/v1/automation/start/link/workflow?${queryParams}`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response
+        .text()
+        .catch(() => "No additional error details available");
+      throw new Error(
+        `HTTP error! Status: ${response.status}, Message: ${errorText}`
+      );
+    }
+
+    const data: StartMeetingWorkflowResponse = await response.json();
+    console.log("Meeting workflow response:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("Failed to start meeting workflow:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "An unexpected error occurred while starting meeting workflow.";
+    throw new Error(errorMessage);
+  }
+};
+
+// Function to fetch all meetings
+export const fetchMeetings = async (): Promise<MeetingsResponse> => {
+  const authToken = Cookies.get("authToken");
+  try {
+    const response = await fetch(`${baseUrl}api/v1/automation/meetings`, {
+      method: "GET",
+      headers: {
+        accept: "application/json",
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: MeetingsResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching meetings:", error);
+    throw error;
+  }
+};
+
+// Comprehensive Analysis API call
+export const fetchComprehensiveAnalysis = async (
+  bot_id: string
+): Promise<ComprehensiveAnalysisResponse> => {
+  const authToken = Cookies.get("authToken");
+  try {
+    const response = await fetch(
+      `${baseUrl}api/v1/analysis/bot/${bot_id}/analysis/comprehensive`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: ComprehensiveAnalysisResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching comprehensive analysis:", error);
+    throw error;
+  }
+};
+
+// Sentiment Analysis API call
+export const fetchSentimentAnalysis = async (
+  bot_id: string
+): Promise<SentimentAnalysisResponse> => {
+  const authToken = Cookies.get("authToken");
+  try {
+    const response = await fetch(
+      `${baseUrl}api/v1/analysis/bot/${bot_id}/analysis/sentiment`,
+      {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data: SentimentAnalysisResponse = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching sentiment analysis:", error);
+    throw error;
+  }
+};
+
+export const fetchCompleteAnalysis = async (meetingId: string) => {
+  // Placeholder for complete analysis API call
+  console.log("Fetching complete analysis for meeting:", meetingId);
+  // Implement when API is available
+};
+
+export async function fetchGoogleAuthToken(
+  session: string,
+  retries = 3
+): Promise<GoogleAuthTokenResponse> {
+  if (!baseUrl) {
+    console.error("API base URL is not defined.");
+    throw new Error("API base URL is not defined.");
+  }
+  if (!session) {
+    console.error("Session parameter is missing.");
+    throw new Error("Session parameter is missing.");
+  }
+
+  const url = `${baseUrl}api/v1/auth/auth/token`;
+  console.log(
+    "Fetching Google auth token from:",
+    url,
+    "with session:",
+    session
+  );
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${session}`,
+        },
+        signal: controller.signal,
+      });
+
+      console.log("Response status:", response.status, "OK:", response.ok);
+      console.log(
+        "Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
+
+      if (!response.ok) {
+        const errorText = await response
+          .text()
+          .catch(() => "No additional error details available");
+        console.error(
+          `Attempt ${attempt} failed: Status: ${response.status}, Message: ${errorText}`
+        );
+        throw new Error(
+          `HTTP error! Status: ${response.status}, Message: ${errorText}`
+        );
+      }
+
+      const authData: GoogleAuthTokenResponse = await response.json();
+      console.log("Auth data received:", authData);
+
+      if (!authData.access_token || !authData.expires_at) {
+        console.error("Invalid auth token response:", authData);
+        throw new Error("Invalid response: missing access_token or expires_at");
+      }
+
+      return authData;
+    } catch (error) {
+      console.error(`Attempt ${attempt} failed:`, error);
+      if (attempt === retries) {
+        throw new Error(
+          error instanceof Error
+            ? `Failed to fetch Google auth token after ${retries} attempts: ${error.message}`
+            : "Failed to fetch Google auth token using GET"
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+  throw new Error("Max retries reached");
+}
 
 export const fetchBots = async (): Promise<BotData[]> => {
   try {
@@ -158,15 +464,18 @@ export const fetchBots = async (): Promise<BotData[]> => {
         "API base URL is not defined. Please check your environment variables."
       );
     }
-    if (!AUTH_TOKEN) {
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
       throw new Error("Authorization token is missing. Please log in again.");
     }
 
-    const response = await fetch(`${baseUrl}api/v1/meetings/bots`, {
+    console.log("fetchBots: Retrieved authToken:", authToken);
+
+    const response = await fetch(`${baseUrl}api/v1/meetings/user-bots`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${AUTH_TOKEN}`,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -179,19 +488,27 @@ export const fetchBots = async (): Promise<BotData[]> => {
       );
     }
 
-    const data: RawBotResponse[] = await response.json();
+    const data: BotsApiResponse = await response.json();
     console.log("Fetched bots data:", data);
 
-    return data.map((bot: RawBotResponse) => ({
-      id: bot.id,
+    if (!data.success) {
+      throw new Error("API returned success: false");
+    }
+
+    return data.bots.map((bot: RawBotResponse) => ({
+      id: bot.bot_id,
       name: bot.bot_name,
-      description: `AI-powered meeting assistant for ${bot.meeting_url.platform}`,
-      calendar_id: bot.meeting_url.meeting_id,
+      description: bot.platform
+        ? `AI-powered meeting assistant for ${bot.platform}`
+        : "AI-powered meeting assistant",
+      calendar_id: bot.bot_id || "N/A",
       recording_config: bot.recording_config,
       status:
-        bot.status_changes[bot.status_changes.length - 1]?.code === "done"
-          ? "inactive"
-          : "active",
+        bot.status_changes && bot.status_changes.length > 0
+          ? bot.status_changes[bot.status_changes.length - 1].code === "done"
+            ? "inactive"
+            : "active"
+          : "inactive",
     }));
   } catch (error: unknown) {
     console.error("Failed to fetch bots:", error);
@@ -212,9 +529,12 @@ export const fetchBotStatus = async (
         "API base URL is not defined. Please check your environment variables."
       );
     }
-    if (!AUTH_TOKEN) {
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
       throw new Error("Authorization token is missing. Please log in again.");
     }
+
+    console.log("fetchBotStatus: Retrieved authToken:", authToken);
 
     const response = await fetch(
       `${baseUrl}api/v1/meetings/bot/${botId}/status`,
@@ -222,7 +542,7 @@ export const fetchBotStatus = async (
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${AUTH_TOKEN}`,
+          Authorization: `Bearer ${authToken}`,
         },
       }
     );
@@ -256,9 +576,12 @@ export const fetchCalendarEvents = async (): Promise<CalendarApiResponse> => {
         "API base URL is not defined. Please check your environment variables."
       );
     }
-    if (!AUTH_TOKEN) {
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
       throw new Error("Authorization token is missing. Please log in again.");
     }
+
+    console.log("fetchCalendarEvents: Retrieved authToken:", authToken);
 
     const queryParams = new URLSearchParams({
       calendar_id: "primary",
@@ -273,7 +596,7 @@ export const fetchCalendarEvents = async (): Promise<CalendarApiResponse> => {
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
-          Authorization: `Bearer ${AUTH_TOKEN}`,
+          Authorization: `Bearer ${authToken}`,
         },
       }
     );
@@ -307,15 +630,18 @@ export const startWorkflow = async () => {
         "API base URL is not defined. Please check your environment variables."
       );
     }
-    if (!AUTH_TOKEN) {
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
       throw new Error("Authorization token is missing. Please log in again.");
     }
+
+    console.log("startWorkflow: Retrieved authToken:", authToken);
 
     const response = await fetch(`${baseUrl}api/v1/automation/start/workflow`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${AUTH_TOKEN}`,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -346,15 +672,18 @@ export const setupGmail = async (): Promise<boolean> => {
         "API base URL is not defined. Please check your environment variables."
       );
     }
-    if (!AUTH_TOKEN) {
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
       throw new Error("Authorization token is missing. Please log in again.");
     }
+
+    console.log("setupGmail: Retrieved authToken:", authToken);
 
     const response = await fetch(`${baseUrl}api/v1/gmail/setup-gmail`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${AUTH_TOKEN}`,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -414,6 +743,101 @@ export const googleLogin = async (): Promise<GoogleLoginResponse> => {
       error instanceof Error
         ? error.message
         : "An unexpected error occurred while performing Google login.";
+    throw new Error(errorMessage);
+  }
+};
+
+export const fetchUserSettings = async (): Promise<UserSettingsResponse> => {
+  try {
+    if (!baseUrl) {
+      throw new Error(
+        "API base URL is not defined. Please check your environment variables."
+      );
+    }
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
+      throw new Error("Authorization token is missing. Please log in again.");
+    }
+
+    console.log("fetchUserSettings: Retrieved authToken:", authToken);
+
+    const response = await fetch(`${baseUrl}api/v1/user/settings`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response
+        .text()
+        .catch(() => "No additional error details available");
+      throw new Error(
+        `HTTP error! Status: ${response.status}, Message: ${errorText}`
+      );
+    }
+
+    const data: UserSettingsResponse = await response.json();
+    console.log("Fetched user settings:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("Failed to fetch user settings:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "An unexpected error occurred while fetching user settings.";
+    throw new Error(errorMessage);
+  }
+};
+
+export const updateUserProfile = async (profileData: {
+  full_name: string;
+  bot_name: string;
+  enable_backend_tasks: boolean;
+}): Promise<UpdateProfileResponse> => {
+  try {
+    if (!baseUrl) {
+      throw new Error(
+        "API base URL is not defined. Please check your environment variables."
+      );
+    }
+    const authToken = Cookies.get("authToken");
+    if (!authToken) {
+      throw new Error("Authorization token is missing. Please log in again.");
+    }
+
+    console.log("updateUserProfile: Retrieved authToken:", authToken);
+
+    const response = await fetch(`${baseUrl}api/v1/user/profile`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify(profileData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response
+        .text()
+        .catch(() => "No additional error details available");
+      throw new Error(
+        `HTTP error! Status: ${response.status}, Message: ${errorText}`
+      );
+    }
+
+    const data: UpdateProfileResponse = await response.json();
+    console.log("Updated user profile:", data);
+    return data;
+  } catch (error: unknown) {
+    console.error("Failed to update user profile:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "An unexpected error occurred while updating user profile.";
     throw new Error(errorMessage);
   }
 };
